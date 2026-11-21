@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0f2c">
+<title>로또 번호 추첨</title>
+<style>
+  :root {
+    --navy-deep: #050822;
+    --navy: #0d1440;
+    --navy-light: #1c2a6b;
+    --gold: #ffd76a;
+    --ball-size: clamp(44px, 12vw, 72px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    color: #fff;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(90, 110, 255, 0.35), transparent 60%),
+      radial-gradient(ellipse at 50% 120%, rgba(255, 70, 160, 0.25), transparent 55%),
+      linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+    background-color: var(--navy-deep);
+    overflow-x: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+
+  /* ---------- 반짝이는 별 ---------- */
+  .stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+    animation: twinkle var(--dur) ease-in-out infinite;
+    animation-delay: var(--delay);
+    opacity: 0.2;
+  }
+  .star.big {
+    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.7);
+  }
+  .star.cross::before,
+  .star.cross::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
+    transform: translate(-50%, -50%);
+  }
+  .star.cross::before { width: 16px; height: 1px; }
+  .star.cross::after  { width: 1px; height: 16px;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.9), transparent); }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.15; transform: scale(0.7); }
+    50%      { opacity: 1;    transform: scale(1.2); }
+  }
+
+  /* ---------- 무대 ---------- */
+  .stage {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    border: 1px solid rgba(255, 215, 106, 0.5);
+    background: rgba(255, 215, 106, 0.08);
+    margin-bottom: 14px;
+  }
+  .badge .live {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff3b5c;
+    margin-right: 8px;
+    vertical-align: 1px;
+    box-shadow: 0 0 8px #ff3b5c;
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.25; } }
+
+  h1 {
+    font-size: clamp(34px, 9vw, 60px);
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    background: linear-gradient(180deg, #fff6d0 0%, #ffd76a 45%, #e89b1c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 18px rgba(255, 200, 80, 0.45));
+  }
+  .subtitle {
+    margin-top: 8px;
+    font-size: clamp(14px, 3.6vw, 17px);
+    color: rgba(220, 228, 255, 0.75);
+  }
+
+  /* ---------- 추첨판 ---------- */
+  .board {
+    position: relative;
+    margin: 28px auto 32px;
+    padding: clamp(22px, 5vw, 34px) clamp(12px, 3vw, 24px);
+    border-radius: 28px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+      0 0 0 6px rgba(255, 215, 106, 0.06),
+      0 20px 60px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    overflow: hidden;
+  }
+  .board::before {
+    /* 무대 조명 */
+    content: "";
+    position: absolute;
+    top: -60%; left: 50%;
+    width: 140%; height: 120%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, rgba(160, 180, 255, 0.18), transparent 60%);
+    pointer-events: none;
+  }
+
+  .balls {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    gap: clamp(6px, 2vw, 14px);
+    min-height: calc(var(--ball-size) + 24px);
+    align-items: flex-end;
+    padding-bottom: 14px;
+  }
+
+  .slot {
+    position: relative;
+    width: var(--ball-size);
+    height: var(--ball-size);
+    flex: 0 0 auto;
+  }
+  .slot::after {
+    /* 비어있는 자리 */
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.18);
+    transition: opacity 0.3s;
+  }
+  .slot.filled::after { opacity: 0; }
+
+  .shadow {
+    position: absolute;
+    left: 50%;
+    bottom: -12px;
+    width: 80%;
+    height: 10px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.6), transparent 70%);
+    opacity: 0;
+  }
+  .slot.filled .shadow { animation: shadowBounce 0.9s ease-out forwards; }
+
+  .ball {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: calc(var(--ball-size) * 0.4);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.35) 14%, transparent 34%),
+      radial-gradient(circle at 50% 50%, var(--c1) 0%, var(--c2) 70%, var(--c3) 100%);
+    box-shadow:
+      inset -6px -8px 14px rgba(0, 0, 0, 0.35),
+      inset 4px 4px 10px rgba(255, 255, 255, 0.25),
+      0 6px 14px rgba(0, 0, 0, 0.45),
+      0 0 22px var(--glow);
+    animation: popBounce 0.9s cubic-bezier(.28,.84,.42,1) both;
+  }
+  .ball::after {
+    /* 아래쪽 반사광 */
+    content: "";
+    position: absolute;
+    bottom: 10%;
+    left: 50%;
+    width: 46%;
+    height: 14%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.35), transparent 70%);
+  }
+
+  .ball.yellow { --c1: #ffe36b; --c2: #fbc400; --c3: #b88400; --glow: rgba(251, 196, 0, 0.55); color: #fff; }
+  .ball.blue   { --c1: #8fd8ff; --c2: #2f9be0; --c3: #155a94; --glow: rgba(70, 170, 240, 0.55); }
+  .ball.red    { --c1: #ff9a9a; --c2: #f04848; --c3: #a01c1c; --glow: rgba(255, 80, 80, 0.55); }
+  .ball.gray   { --c1: #d4d4d8; --c2: #8e8e96; --c3: #4d4d55; --glow: rgba(200, 200, 210, 0.4); }
+  .ball.green  { --c1: #d2f27a; --c2: #8cc63f; --c3: #4c7a17; --glow: rgba(150, 210, 60, 0.55); }
+
+  @keyframes popBounce {
+    0%   { transform: translateY(-160%) scale(0.3); opacity: 0; }
+    35%  { transform: translateY(0) scale(1.08, 0.86); opacity: 1; }
+    50%  { transform: translateY(-38%) scale(0.95, 1.05); }
+    65%  { transform: translateY(0) scale(1.05, 0.93); }
+    78%  { transform: translateY(-12%) scale(1); }
+    90%  { transform: translateY(0) scale(1.02, 0.98); }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @keyframes shadowBounce {
+    0%   { opacity: 0; transform: translateX(-50%) scale(0.2); }
+    35%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    50%  { opacity: 0.5; transform: translateX(-50%) scale(0.7); }
+    65%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    78%  { opacity: 0.8; transform: translateX(-50%) scale(0.9); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
+  }
+
+  .sparkle {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 8px var(--gold);
+    pointer-events: none;
+    animation: sparkle 0.7s ease-out forwards;
+  }
+  @keyframes sparkle {
+    from { transform: translate(-50%, -50%) translate(0, 0) scale(1); opacity: 1; }
+    to   { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+  }
+
+  .status {
+    position: relative;
+    margin-top: 14px;
+    min-height: 22px;
+    font-size: 15px;
+    color: rgba(220, 228, 255, 0.8);
+  }
+  .status.done {
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  /* ---------- 버튼 ---------- */
+  .draw-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: min(280px, 100%);
+    padding: 20px 44px;
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: clamp(20px, 5.5vw, 24px);
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    color: #3a1d00;
+    cursor: pointer;
+    background: linear-gradient(180deg, #fff1b0 0%, #ffd34d 40%, #f5a300 100%);
+    box-shadow:
+      0 8px 0 #b56d00,
+      0 14px 24px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(255, 200, 60, 0.45),
+      inset 0 2px 0 rgba(255, 255, 255, 0.8);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  .draw-btn::before {
+    /* 빛이 지나가는 효과 */
+    content: "";
+    position: absolute;
+    top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.7), transparent);
+    transform: skewX(-20deg);
+    animation: shine 3s ease-in-out infinite;
+  }
+  @keyframes shine {
+    0%, 60% { left: -60%; }
+    100%    { left: 130%; }
+  }
+  .draw-btn:hover { filter: brightness(1.06); }
+  .draw-btn:active {
+    transform: translateY(6px);
+    box-shadow:
+      0 2px 0 #b56d00,
+      0 4px 10px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(255, 200, 60, 0.35),
+      inset 0 2px 0 rgba(255, 255, 255, 0.6);
+  }
+  .draw-btn:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 4px;
+  }
+  .draw-btn:disabled {
+    cursor: default;
+    filter: grayscale(0.4) brightness(0.85);
+  }
+  .draw-btn:disabled::before { animation: none; }
+
+  /* ---------- 기록 ---------- */
+  .history {
+    margin-top: 32px;
+    text-align: left;
+  }
+  .history h2 {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: rgba(220, 228, 255, 0.6);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .history ol {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .history li {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    animation: fadeIn 0.4s ease;
+  }
+  .history .round {
+    font-size: 12px;
+    color: rgba(220, 228, 255, 0.55);
+    width: 34px;
+    flex: 0 0 auto;
+  }
+  .history .ball {
+    position: relative;
+    inset: auto;
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+    animation: none;
+    box-shadow:
+      inset -3px -4px 7px rgba(0, 0, 0, 0.35),
+      0 2px 5px rgba(0, 0, 0, 0.4);
+  }
+  .history .ball::after { display: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } }
+
+  @media (max-width: 380px) {
+    :root { --ball-size: 13vw; }
+    .history .ball { width: 26px; height: 26px; font-size: 12px; }
+    .draw-btn { padding: 18px 32px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .star, .draw-btn::before, .badge .live { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="stars" id="stars" aria-hidden="true"></div>
+
+  <main class="stage">
+    <span class="badge"><span class="live"></span>LIVE DRAW</span>
+    <h1>LOTTO 6/45</h1>
+    <p class="subtitle">행운의 번호를 뽑아보세요!</p>
+
+    <section class="board" aria-label="추첨 결과">
+      <div class="balls" id="balls"></div>
+      <p class="status" id="status" aria-live="polite">버튼을 눌러 추첨을 시작하세요</p>
+    </section>
+
+    <button class="draw-btn" id="drawBtn" type="button">🎱 번호 뽑기</button>
+
+    <section class="history" id="history" hidden>
+      <h2>최근 추첨 기록</h2>
+      <ol id="historyList"></ol>
+    </section>
+  </main>
+
+<script>
+(function () {
+  const COUNT = 6;
+  const MAX = 45;
+  const INTERVAL = 500; // 공이 하나씩 나오는 간격 (ms)
+  const HISTORY_LIMIT = 5;
+
+  const ballsEl = document.getElementById('balls');
+  const statusEl = document.getElementById('status');
+  const btn = document.getElementById('drawBtn');
+  const historySection = document.getElementById('history');
+  const historyList = document.getElementById('historyList');
+  let round = 0;
+
+  // ----- 별 만들기 -----
+  (function makeStars() {
+    const box = document.getElementById('stars');
+    const n = window.innerWidth < 600 ? 70 : 130;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('span');
+      const size = Math.random() < 0.85 ? Math.random() * 2 + 1 : Math.random() * 2 + 3;
+      s.className = 'star' + (size > 3 ? ' big' : '') + (Math.random() < 0.06 ? ' cross' : '');
+      s.style.width = s.style.height = size + 'px';
+      s.style.left = Math.random() * 100 + '%';
+      s.style.top = Math.random() * 100 + '%';
+      s.style.setProperty('--dur', (Math.random() * 3 + 1.5).toFixed(2) + 's');
+      s.style.setProperty('--delay', (Math.random() * -5).toFixed(2) + 's');
+      frag.appendChild(s);
+    }
+    box.appendChild(frag);
+  })();
+
+  // ----- 빈 자리 -----
+  function renderEmptySlots() {
+    ballsEl.innerHTML = '';
+    for (let i = 0; i < COUNT; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.innerHTML = '<div class="shadow"></div>';
+      ballsEl.appendChild(slot);
+    }
+  }
+
+  // ----- 번호대별 색 -----
+  function colorOf(n) {
+    if (n <= 10) return 'yellow';
+    if (n <= 20) return 'blue';
+    if (n <= 30) return 'red';
+    if (n <= 40) return 'gray';
+    return 'green';
+  }
+
+  // ----- 공정한 난수 (crypto 사용) -----
+  function randomInt(maxExclusive) {
+    if (window.crypto && crypto.getRandomValues) {
+      const buf = new Uint32Array(1);
+      const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+      do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+      return buf[0] % maxExclusive;
+    }
+    return Math.floor(Math.random() * maxExclusive);
+  }
+
+  // 1~45 중 겹치지 않는 6개 (Fisher–Yates 부분 섞기)
+  function drawNumbers() {
+    const pool = Array.from({ length: MAX }, (_, i) => i + 1);
+    for (let i = 0; i < COUNT; i++) {
+      const j = i + randomInt(MAX - i);
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, COUNT).sort((a, b) => a - b);
+  }
+
+  function makeBall(n) {
+    const b = document.createElement('div');
+    b.className = 'ball ' + colorOf(n);
+    b.textContent = n;
+    return b;
+  }
+
+  function burst(slot) {
+    for (let i = 0; i < 8; i++) {
+      const p = document.createElement('span');
+      p.className = 'sparkle';
+      const angle = (Math.PI * 2 * i) / 8;
+      const dist = 34 + Math.random() * 16;
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      slot.appendChild(p);
+      p.addEventListener('animationend', () => p.remove());
+    }
+  }
+
+  function addHistory(nums) {
+    round++;
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="round">#' + round + '</span>';
+    nums.forEach(n => li.appendChild(makeBall(n)));
+    historyList.prepend(li);
+    while (historyList.children.length > HISTORY_LIMIT) {
+      historyList.lastElementChild.remove();
+    }
+    historySection.hidden = false;
+  }
+
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    const nums = drawNumbers();
+    renderEmptySlots();
+    statusEl.classList.remove('done');
+    statusEl.textContent = '추첨 중...';
+
+    const slots = ballsEl.children;
+    nums.forEach((n, i) => {
+      setTimeout(() => {
+        const slot = slots[i];
+        slot.classList.add('filled');
+        slot.appendChild(makeBall(n));
+        setTimeout(() => burst(slot), 300);
+        statusEl.textContent = '추첨 중... (' + (i + 1) + '/' + COUNT + ')';
+
+        if (i === COUNT - 1) {
+          setTimeout(() => {
+            statusEl.classList.add('done');
+            statusEl.textContent = '🎉 이번 행운의 번호: ' + nums.join(', ');
+            addHistory(nums);
+            btn.disabled = false;
+          }, 900);
+        }
+      }, INTERVAL * (i + 1));
+    });
+  });
+
+  renderEmptySlots();
+})();
+</script>
+</body>
+</html>
