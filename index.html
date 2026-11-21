@@ -390,8 +390,108 @@
     .draw-btn { padding: 18px 32px; }
   }
 
+  /* ---------- 축하 팝업 ---------- */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(3, 5, 25, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    overflow: hidden;
+    animation: modalFade 0.25s ease;
+  }
+  .modal[hidden] { display: none; }
+  @keyframes modalFade { from { opacity: 0; } }
+
+  .modal-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 20px 26px;
+    border-radius: 28px;
+    text-align: center;
+    background: linear-gradient(180deg, #24327f 0%, #121a4d 100%);
+    border: 2px solid rgba(255, 215, 106, 0.6);
+    box-shadow:
+      0 0 0 6px rgba(255, 215, 106, 0.1),
+      0 0 50px rgba(255, 200, 80, 0.35),
+      0 24px 60px rgba(0, 0, 0, 0.6);
+    animation: cardPop 0.5s cubic-bezier(.2, 1.4, .4, 1) both;
+  }
+  @keyframes cardPop {
+    from { transform: scale(0.6) translateY(30px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .modal-emoji {
+    font-size: 52px;
+    line-height: 1;
+    display: inline-block;
+    animation: wiggle 1.2s ease-in-out infinite;
+  }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-8deg) scale(1); }
+    50%      { transform: rotate(8deg) scale(1.12); }
+  }
+  .modal-card h2 {
+    margin-top: 10px;
+    font-size: clamp(30px, 8vw, 38px);
+    font-weight: 900;
+    background: linear-gradient(180deg, #fff6d0 0%, #ffd76a 45%, #e89b1c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 14px rgba(255, 200, 80, 0.5));
+  }
+  .modal-card p {
+    margin-top: 6px;
+    font-size: 15px;
+    color: rgba(220, 228, 255, 0.8);
+  }
+  .modal-balls {
+    display: flex;
+    justify-content: center;
+    gap: clamp(4px, 1.5vw, 8px);
+    margin: 20px 0 24px;
+  }
+  .modal-balls .ball {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: clamp(34px, 10.5vw, 46px);
+    height: clamp(34px, 10.5vw, 46px);
+    font-size: clamp(14px, 4.2vw, 18px);
+    animation: popBounce 0.7s cubic-bezier(.28,.84,.42,1) both;
+  }
+  .modal-close {
+    min-width: 160px;
+    padding: 14px 32px;
+    font-size: 18px;
+  }
+
+  .confetti {
+    position: absolute;
+    top: -20px;
+    width: 10px;
+    height: 16px;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: confettiFall var(--fall) linear forwards;
+    animation-delay: var(--delay);
+  }
+  @keyframes confettiFall {
+    from { transform: translate(0, 0) rotate(0deg); }
+    to   { transform: translate(var(--drift), 110vh) rotate(var(--spin)); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .star, .draw-btn::before, .badge .live { animation: none; }
+    .star, .draw-btn::before, .badge .live, .modal-emoji { animation: none; }
+    .confetti { display: none; }
   }
 </style>
 </head>
@@ -415,6 +515,16 @@
       <ol id="historyList"></ol>
     </section>
   </main>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="modal-card">
+      <div class="modal-emoji" aria-hidden="true">🎉</div>
+      <h2 id="modalTitle">축하합니다!</h2>
+      <p>이번 행운의 번호가 나왔어요</p>
+      <div class="modal-balls" id="modalBalls"></div>
+      <button class="draw-btn modal-close" id="modalClose" type="button">확인</button>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -522,6 +632,45 @@
     historySection.hidden = false;
   }
 
+  // ----- 축하 팝업 -----
+  const modal = document.getElementById('modal');
+  const modalBalls = document.getElementById('modalBalls');
+  const modalClose = document.getElementById('modalClose');
+  const CONFETTI_COLORS = ['#ffd76a', '#ff7272', '#69c8f2', '#b0d840', '#ffffff', '#ff8fd8'];
+
+  function openModal(nums) {
+    modalBalls.innerHTML = '';
+    nums.forEach((n, i) => {
+      const b = makeBall(n);
+      b.style.animationDelay = (0.25 + i * 0.1) + 's';
+      modalBalls.appendChild(b);
+    });
+    modal.querySelectorAll('.confetti').forEach(c => c.remove());
+    for (let i = 0; i < 60; i++) {
+      const c = document.createElement('span');
+      c.className = 'confetti';
+      c.style.left = Math.random() * 100 + '%';
+      c.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      c.style.setProperty('--fall', (Math.random() * 1.5 + 2).toFixed(2) + 's');
+      c.style.setProperty('--delay', (Math.random() * 0.8).toFixed(2) + 's');
+      c.style.setProperty('--drift', (Math.random() * 160 - 80).toFixed(0) + 'px');
+      c.style.setProperty('--spin', (Math.random() * 720 + 360).toFixed(0) + 'deg');
+      modal.appendChild(c);
+    }
+    modal.hidden = false;
+    modalClose.focus();
+  }
+
+  function closeModal() {
+    if (modal.hidden) return;
+    modal.hidden = true;
+    btn.focus();
+  }
+
+  modalClose.addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
   btn.addEventListener('click', () => {
     btn.disabled = true;
     const nums = drawNumbers();
@@ -544,6 +693,7 @@
             statusEl.textContent = '🎉 이번 행운의 번호: ' + nums.join(', ');
             addHistory(nums);
             btn.disabled = false;
+            openModal(nums);
           }, 900);
         }
       }, INTERVAL * (i + 1));
